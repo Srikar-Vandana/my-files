@@ -1,0 +1,36 @@
+CI/CD through github actions and deploy a static website on AWS S3 Bucket
+
+Create a new repo and add index.html file 
+Create IAM -> Git settings Secret and variables -> Give access key and id
+Create s3 bucket and give permissions 
+In git workflows main.yml write the script
+
+name: Upload Website
+ 
+on:
+  push:
+    branches:
+    - main
+ 
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v1
+ 
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_KEY }}
+        aws-region: us-east-1
+ 
+    - name: Deploy static site to S3 bucket
+      run: aws s3 sync ./ s3://hellooooo12 [S3 Bucket name]
+
+Now the objects will be sent to the bucket and build will be success
+Now go and make them public those obj and give access to s3 bucket link 
+copy that and paste in browser
+ 
+ 
