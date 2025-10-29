@@ -4,37 +4,48 @@ vim vpc-code make dir and follow the previous one but in the script add this
 vim my-vpc-code.tf
 
 
-provider "aws" {
-  region = "ap-southeast-1"
-
-}
-
-#This is VPC code
-
-resource "aws_vpc" "test-vpc" {
+resource "aws_vpc" "prod-vpc" {
   cidr_block = "10.0.0.0/16"
 }
 
-# this is Subnet code
-resource "aws_subnet" "public-subnet" {
-  vpc_id     = aws_vpc.test-vpc.id
-  cidr_block = "10.0.0.0/24"
+
+## This is for IGW
+
+resource "aws_internet_gateway" "prod-igw" {
+  vpc_id = aws_vpc.prod-vpc.id
 
   tags = {
-    Name = "Public-subnet"
+    Name = "prod-vpc"
   }
 }
 
 
+## THis is for public subnet
+
+resource "aws_subnet" "public-subnet" {
+  vpc_id     = aws_vpc.prod-vpc.id
+  cidr_block = "10.0.0.0/24"
+
+  tags = {
+    Name = "public-subnet"
+  }
+}
+
+## THis is for private subnet
+
 resource "aws_subnet" "private-subnet" {
-  vpc_id     = aws_vpc.test-vpc.id
+  vpc_id     = aws_vpc.prod-vpc.id
   cidr_block = "10.0.1.0/24"
 
   tags = {
-    Name = "Private-subnet"#security group
+    Name = "private-subnet"
+  }
+}
+
+## THis is for security group
 resource "aws_security_group" "test_access" {
   name        = "test_access"
-  vpc_id     = aws_vpc.test-vpc.id
+  vpc_id      = aws_vpc.prod-vpc.id
   description = "allow ssh and http"
 
   ingress {
@@ -57,43 +68,37 @@ resource "aws_security_group" "test_access" {
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
-
-
-}
-#security group end here#internet gateway code
-resource "aws_internet_gateway" "test-igw" {
-  vpc_id = aws_vpc.test-vpc.id
-
-  tags = {
-    Name = "test-igw"
-  }
 }
 
+# Security Group Ends Here
 
-#Public route table code
+# Creating Route table for public-subnet
 
 resource "aws_route_table" "public-rt" {
-  vpc_id = aws_vpc.test-vpc.id
+  vpc_id = aws_vpc.prod-vpc.id
 
   route {
     cidr_block = "0.0.0.0/0"
-    gateway_id = aws_internet_gateway.test-igw.id
+    gateway_id = aws_internet_gateway.prod-igw.id
   }
+}
 
+# Public route table associate
 
-  tags = {
-    Name = "public-rt"#route Tatable assosication code
-resource "aws_route_table_association" "public-asso" {
+resource "aws_route_table_association" "publiv-rt-asso" {
   subnet_id      = aws_subnet.public-subnet.id
   route_table_id = aws_route_table.public-rt.id
 }
-#ec2 code
-resource "aws_instance" "sanjay-server" {
-  ami             = "ami-05caa5aa0186b660f"
-  subnet_id       = "${aws_subnet.public-subnet.id}"
-  instance_type   = "t2.micro"
+
+## ec2 in public subnet
+
+# Private server
+resource "aws_instance" "db-server" {
+  ami             = "ami-0341d95f75f311023"
+  subnet_id       = aws_subnet.public-subnet.id
+  instance_type   = "t3.micro"
   security_groups = ["${aws_security_group.test_access.id}"]
-  key_name        = "ltitestkey"
+  key_name        = "terra-admin"
   tags = {
     Name     = "test-World"
     Stage    = "testing"
@@ -102,48 +107,36 @@ resource "aws_instance" "sanjay-server" {
 
 }
 
-
 ##create an EIP for EC2
 resource "aws_eip" "sanjay-ec2-eip" {
-  instance = "${aws_instance.sanjay-server.id}"
+  instance = aws_instance.db-server.id
 }
 
-#ssh keypair code
-resource "aws_key_pair" "ltitestkey" {
-  key_name   = "ltitestkey"
-  public_key = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQCna003KhRgd+jpwQG1PuIsBkK9N56JjVTfqosxEo5Djxfe5koq8LgpgECfTWfQMC7zhuZyq37jO3ZXAv+/9hSbx/LBGq8otLmG7Q4ypKtSWX8XuT2kCNdxQ1b8Wp6kFV61ZyNpJnq6zSEWPhY6i24tzuPki9awZQaoxi20QF98v0Xc6VNe9bc8n8OLjuiuz/Qe+Y/9zUY0UzWZyc9jzE+EsYSwXed2MQgcv7WucRgVh/zoAa6yLnffG+uNe/YDUWIz1eK35uMFHHYZBVpm+ZaEEsztSiGhzl5LlNfjmIMyVfaj0IqQ3D6SP8Moy1LIqxomQjg0D2lhlwsuhdQtHdKlq3P2E+j+8X8bg8sc8gwJJ84SkoY/h+TwZRlfior6WczZq3kZ/3WpMBLdqVeLHCYhyWxJm3b/z73NmKDNXOnPSByFoiZYACe9gCOP5AxewJHkz6djfl+6ghJy6dnO6akc9aIXwyaeMzgGMtaXcwE1ddqLz5X0TxICX1MNpK5q2AE= root@linux.example.com"
+# add ssh key
+
+resource "aws_key_pair" "terra-admin" {
+  key_name   = "terra-admin"
+  public_key = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQCZlb9rxK1K9lZK6op7roFNfE3tq5wZCJgUtAMTPNpHvtqLvP0tTBZOPsigAU18Zpu6gEYcZ6Js0HF1HwAkuwLsFqRP9XItcryq5HoYkQDt0OhZX2sY28NNBHyQRHjidiZyBQhHilbmbIEq03peElDiYA+VEyyac2dpf5nuxbhTqXNG0ugFRP7lYwUqoGO8/nux49N01Vy5sXcJ+LTmQcMVY5cPqn3pbGOMvW0EvEvpcTql7OJkHCBjf2Z5NUbViP/RfTHZIN4jxmU3X0znxOklesBIz/+3Ijx54Ai74EV3MH/HZ3ksQ10vjfUEYAspIuUShpQSTrAWXws0HT3WsiGKbY4cHRNnad8uPrwO97dwdem0ZaEDM+OuE+AKRPENkzfguy+LXXfbjpl3i5Vv6pGaLc7fKw1/hwtbj9+HPISoTvDcchmk0Ti5NMfwl62p0TBhxmjxSS7RWY7g8wIedNZBdpcEBSBaq28W3Yl465jIYA+GHSH0+1p5cz6ikYDXMDM= root@terra.example.com"
 }
 
-###this is database ec2 code
-resource "aws_instance" "database-server" {
-  ami             = "ami-05caa5aa0186b660f"
-  subnet_id       = "${aws_subnet.private-subnet.id}"
-  instance_type   = "t2.micro"
-  security_groups = ["${aws_security_group.test_access.id}"]
-  key_name        = "ltitestkey"
-  tags = {
-    Name     = "db-World"
-    Stage    = "stage-base"
-    Location = "delhi"
-  }
-
-}
 ##create a public ip for Nat gateway
+
 resource "aws_eip" "nat-eip" {
 }
-### create Nat gateway
+
+# Create NAT gateway
+
 resource "aws_nat_gateway" "my-ngw" {
-  allocation_id = "${aws_eip.nat-eip.id}"
-  subnet_id     = "${aws_subnet.public-subnet.id}"
+  allocation_id = aws_eip.nat-eip.id
+  subnet_id     = aws_subnet.public-subnet.id
 }
 
-#create private route table
 resource "aws_route_table" "private-rt" {
-  vpc_id = aws_vpc.test-vpc.id
+  vpc_id = aws_vpc.prod-vpc.id
 
   route {
     cidr_block = "0.0.0.0/0"
-    gateway_id = "${aws_nat_gateway.my-ngw.id}"
+    gateway_id = aws_nat_gateway.my-ngw.id
   }
 
 
@@ -151,8 +144,25 @@ resource "aws_route_table" "private-rt" {
     Name = "private-rt"
   }
 }
+
 ##route Tatable assosication code
 resource "aws_route_table_association" "private-asso" {
   subnet_id      = aws_subnet.private-subnet.id
   route_table_id = aws_route_table.private-rt.id
 }
+
+## Ec2 code
+resource "aws_instance" "deb-server" {
+  ami             = "ami-0341d95f75f311023"
+  subnet_id       = aws_subnet.public-subnet.id
+  instance_type   = "t3.micro"
+  security_groups = ["${aws_security_group.test_access.id}"]
+  key_name        = "terra-admin"
+  tags = {
+    Name     = "server1"
+    Stage    = "testing"
+    Location = "chennai"
+  }
+
+}
+ 
