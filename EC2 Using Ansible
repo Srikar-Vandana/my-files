@@ -1,0 +1,31 @@
+Creating an EC2 Instance using Ansible
+
+yum install pip
+pip install boto boto3 botocore
+yum install ansible -y
+vim launch.yaml
+
+---
+- name: Launch EC2 instance
+  hosts: localhost
+  gather_facts: no
+  tasks:
+    - name: Launch EC2 instance
+      amazon.aws.ec2_instance:
+        key_name: docker-host
+        instance_type: t3.micro
+        image_id: ami-07860a2d7eb515d9a  # Replace with valid AMI ID
+        wait: yes
+        region: us-east-1
+        count: 1
+        security_group: default
+        tags:
+          Name: Ansible-EC2
+      register: ec2
+
+    - name: Show instance info
+      debug:
+        var: ec2.instances
+
+aws configure
+ansible-playbook launch.yaml
