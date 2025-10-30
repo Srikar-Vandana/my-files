@@ -1,0 +1,20 @@
+- name: tasks
+  hosts: all
+  tasks:
+ 
+    - name: Install httpd
+      dnf:
+        name: httpd
+        state: latest
+ 
+    - name: Start and enable httpd service
+      service:
+        name: httpd
+        state: started
+        enabled: true
+ 
+    - name: Copy fstab file to /tmp
+      copy:
+        src: /etc/fstab
+        dest: /tmp/fstab
+        remote_src: yes
